@@ -32,6 +32,33 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # ============================================================================
+# Retry function for handling transient network errors
+# ============================================================================
+push_with_retry() {
+    local image=$1
+    local max_attempts=3
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "Push attempt $attempt of $max_attempts for $image..."
+        if docker push "$image"; then
+            echo -e "${GREEN}✓ Successfully pushed $image${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}⚠ Push attempt $attempt failed${NC}"
+            if [ $attempt -lt $max_attempts ]; then
+                echo "Waiting 10 seconds before retry..."
+                sleep 10
+            fi
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    echo -e "${RED}✗ Failed to push $image after $max_attempts attempts${NC}"
+    return 1
+}
+
+# ============================================================================
 # Validate Prerequisites
 # ============================================================================
 
@@ -92,10 +119,9 @@ echo "Tagging backend image for Snowflake registry..."
 docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
 echo -e "${GREEN}✓ Backend image tagged${NC}"
 
-# Push to Snowflake registry
+# Push to Snowflake registry with retry
 echo "Pushing backend image to Snowflake registry..."
-docker push ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
-echo -e "${GREEN}✓ Backend image pushed successfully${NC}"
+push_with_retry ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
 echo ""
 
 # ============================================================================
@@ -123,10 +149,9 @@ echo "Tagging frontend image for Snowflake registry..."
 docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
 echo -e "${GREEN}✓ Frontend image tagged${NC}"
 
-# Push to Snowflake registry
+# Push to Snowflake registry with retry
 echo "Pushing frontend image to Snowflake registry..."
-docker push ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
-echo -e "${GREEN}✓ Frontend image pushed successfully${NC}"
+push_with_retry ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
 echo ""
 
 # ============================================================================
@@ -156,10 +181,9 @@ echo "Tagging proxy image for Snowflake registry..."
 docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
 echo -e "${GREEN}✓ Proxy image tagged${NC}"
 
-# Push to Snowflake registry
+# Push to Snowflake registry with retry
 echo "Pushing proxy image to Snowflake registry..."
-docker push ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
-echo -e "${GREEN}✓ Proxy image pushed successfully${NC}"
+push_with_retry ${DOCKER_REPO_URL}/${IMAGE_NAME}:${TAG}
 echo ""
 
 # ============================================================================
