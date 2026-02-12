@@ -23,8 +23,8 @@ import heroBg from '@/assets/hero-bg.jpg';
 import logo from '@/assets/logo.png';
 
 // Static credentials
-const STATIC_EMAIL = 'admin@gmail.com';
-const STATIC_PASSWORD = 'Admin@123';
+const STATIC_EMAIL = 'ritish@blend360.com';
+const STATIC_PASSWORD = 'Blend@123$';
 
 export default function Login() {
   const [email, setEmail] = useState('');
