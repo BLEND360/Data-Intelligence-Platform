@@ -4,8 +4,8 @@
 flask>=2.3.0,<3.0.0
 flask-cors>=4.0.0
 
-# Snowflake Integration
-snowflake-connector-python>=3.6.0
+# Snowflake Integration (version 4.2.0+ required for SPCS OAuth token support)
+snowflake-connector-python>=4.2.0
 snowflake-snowpark-python>=1.11.0
 
 # Cryptography for RSA key handling
