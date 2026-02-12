@@ -3,13 +3,11 @@ spec:
     - name: clarity-backend
       image: /CLARITY_DB/RETAIL/CLARITY_REPOSITORY_DEV/clarity-backend:latest
       env:
+        SNOWFLAKE_HOST: WB19670-C2GPARTNERS.snowflakecomputing.com
         SNOWFLAKE_ACCOUNT: WB19670-C2GPARTNERS
-        SNOWFLAKE_USER: CLARITY_SERVICE_ACCOUNT
-        SNOWFLAKE_ROLE: SNOW_SHERIFF
         SNOWFLAKE_WAREHOUSE: POWERHOUSE
         SNOWFLAKE_DATABASE: CLARITY_DB
         SNOWFLAKE_SCHEMA: RETAIL
-        PRIVATE_KEY_PATH: /app/keys/private_key.pem
       resources:
         requests:
           cpu: 0.5

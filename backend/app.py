@@ -108,20 +108,50 @@ def load_private_key_bytes(path, passphrase=None):
         encryption_algorithm=serialization.NoEncryption()
     )
 
+def is_running_in_spcs():
+    """Check if running inside Snowpark Container Services"""
+    # SPCS sets SNOWFLAKE_HOST environment variable
+    return os.getenv("SNOWFLAKE_HOST") is not None or os.path.exists("/snowflake/session/token")
+
 def get_snowflake_session():
-    conn = snowflake.connector.connect(
-        user=os.getenv("SNOWFLAKE_USER"),
-        account=os.getenv("SNOWFLAKE_ACCOUNT"),
-        private_key=load_private_key_bytes(
-            os.getenv("PRIVATE_KEY_PATH"),
-            os.getenv("PRIVATE_KEY_PASSPHRASE")
-        ),
-        warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
-        database=os.getenv("SNOWFLAKE_DATABASE"),
-        schema=os.getenv("SNOWFLAKE_SCHEMA"),
-        role=os.getenv("SNOWFLAKE_ROLE")
-    )
-    return Session.builder.configs({"connection": conn}).create()
+    """
+    Create Snowflake session - uses SPCS auth when running in container,
+    falls back to private key auth for local development
+    """
+    if is_running_in_spcs():
+        # Running in SPCS - use token-based authentication
+        print("🔐 Using SPCS token-based authentication")
+        return Session.builder.configs({
+            "host": os.getenv("SNOWFLAKE_HOST", f"{os.getenv('SNOWFLAKE_ACCOUNT')}.snowflakecomputing.com"),
+            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+            "authenticator": "oauth",
+            "token": open("/snowflake/session/token").read(),
+            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+            "database": os.getenv("SNOWFLAKE_DATABASE"),
+            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+        }).create()
+    else:
+        # Local development - use private key authentication
+        print("🔑 Using private key authentication")
+        private_key_path = os.getenv("PRIVATE_KEY_PATH")
+        if not private_key_path or not os.path.exists(private_key_path):
+            raise FileNotFoundError(
+                f"Private key not found at {private_key_path}. "
+                "For local development, ensure PRIVATE_KEY_PATH points to a valid .pem file."
+            )
+        conn = snowflake.connector.connect(
+            user=os.getenv("SNOWFLAKE_USER"),
+            account=os.getenv("SNOWFLAKE_ACCOUNT"),
+            private_key=load_private_key_bytes(
+                private_key_path,
+                os.getenv("PRIVATE_KEY_PASSPHRASE")
+            ),
+            warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
+            database=os.getenv("SNOWFLAKE_DATABASE"),
+            schema=os.getenv("SNOWFLAKE_SCHEMA"),
+            role=os.getenv("SNOWFLAKE_ROLE")
+        )
+        return Session.builder.configs({"connection": conn}).create()
 
 def get_snowflake_session_dynamic(account, user, role, warehouse, database, schema, private_key_path, private_key_passphrase=None):
     """Create Snowflake session with dynamically provided credentials"""
