@@ -12,6 +12,7 @@ import { DomainInsights } from '@/components/DomainInsights';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadResult, SnowflakeConfig, DomainReport } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
+import { API_ENDPOINTS } from '@/config/api';
 
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();
@@ -49,7 +50,7 @@ export default function Dashboard() {
       setIsFetchingData(true);
       try {
         console.log('Fetching report from API...');
-        const response = await fetch('http://127.0.0.1:8082/clean-report');
+        const response = await fetch(API_ENDPOINTS.CLEAN_REPORT);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

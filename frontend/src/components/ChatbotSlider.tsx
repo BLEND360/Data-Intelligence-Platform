@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { ChatMessage } from '@/types';
+import { API_ENDPOINTS } from '@/config/api';
 
 interface ChatbotSliderProps {
   isOpen: boolean;
@@ -174,7 +175,7 @@ export function ChatbotSlider({ isOpen, onClose }: ChatbotSliderProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://127.0.0.1:8082/chat', {
+      const response = await fetch(API_ENDPOINTS.CHAT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

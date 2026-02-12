@@ -4,6 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { LoadResult, DomainReport } from '@/types';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
+import { API_ENDPOINTS, getApiUrl } from '@/config/api';
 
 interface HistorySliderProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ export function HistorySlider({ isOpen, onClose, history, onSelectLoad, reportHi
       setIsLoading(true);
       try {
         console.log('Fetching history from API...');
-        const response = await fetch('http://127.0.0.1:8082/clean-report/runs');
+        const response = await fetch(API_ENDPOINTS.CLEAN_REPORT_RUNS);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -55,7 +56,7 @@ export function HistorySlider({ isOpen, onClose, history, onSelectLoad, reportHi
   const handleViewReport = async (loadId: string) => {
     try {
       console.log('Fetching report for load_id:', loadId);
-      const response = await fetch(`http://127.0.0.1:8082/clean-report/${loadId}`);
+      const response = await fetch(getApiUrl(`/clean-report/${loadId}`));
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

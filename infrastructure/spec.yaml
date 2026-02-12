@@ -1,0 +1,52 @@
+spec:
+  containers:
+    - name: clarity-backend
+      image: /CLARITY_DB/RETAIL/CLARITY_REPOSITORY_DEV/clarity-backend:latest
+      env:
+        SNOWFLAKE_ACCOUNT: WB19670-C2GPARTNERS
+        SNOWFLAKE_USER: CLARITY_SERVICE_ACCOUNT
+        SNOWFLAKE_ROLE: SNOW_SHERIFF
+        SNOWFLAKE_WAREHOUSE: POWERHOUSE
+        SNOWFLAKE_DATABASE: CLARITY_DB
+        SNOWFLAKE_SCHEMA: RETAIL
+        PRIVATE_KEY_PATH: /app/keys/private_key.pem
+      resources:
+        requests:
+          cpu: 0.5
+          memory: 1Gi
+        limits:
+          cpu: 2
+          memory: 4Gi
+
+    - name: clarity-frontend
+      image: /CLARITY_DB/RETAIL/CLARITY_REPOSITORY_DEV/clarity-frontend:latest
+      resources:
+        requests:
+          cpu: 0.25
+          memory: 256Mi
+        limits:
+          cpu: 1
+          memory: 1Gi
+
+    - name: clarity-proxy
+      image: /CLARITY_DB/RETAIL/CLARITY_REPOSITORY_DEV/clarity-proxy:latest
+      env:
+        FRONTEND_SERVICE: localhost:8080
+        BACKEND_SERVICE: localhost:8082
+      resources:
+        requests:
+          cpu: 0.25
+          memory: 256Mi
+        limits:
+          cpu: 0.5
+          memory: 512Mi
+
+  endpoints:
+    - name: clarity
+      port: 8000
+      public: true
+
+  platformMonitor:
+    metricConfig:
+      groups:
+        - system

@@ -1,0 +1,219 @@
+name: Deploy CLARITY to Snowpark Container Services
+
+# ============================================================================
+# Workflow Configuration
+# ============================================================================
+# This workflow builds and deploys the application (frontend + backend + proxy)
+# to Snowpark Container Services whenever code is pushed to main.
+#
+# Workflow Steps:
+# 1. Build all Docker images (frontend, backend, proxy)
+# 2. Push images to Snowflake container registry
+# 3. Deploy/upgrade the Snowpark service
+# 4. Display service status and endpoints
+# ============================================================================
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "backend/**"
+      - "infrastructure/**"
+      - "proxy/**"
+      - "build-and-push.sh"
+      - ".github/workflows/deploy.yaml"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+
+env:
+  # Snowflake connection settings (from GitHub Secrets)
+  SNOWFLAKE_HOST: ${{ secrets.SNOWFLAKE_HOST }}
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_RAW }}
+  SNOWFLAKE_ROLE: SNOW_SHERIFF
+  SNOWFLAKE_WAREHOUSE: POWERHOUSE
+  SNOWFLAKE_DATABASE: CLARITY_DB
+  SNOWFLAKE_SCHEMA: RETAIL
+
+  # Service configuration
+  SERVICE_NAME: CLARITY_SERVICE_DEV
+  COMPUTE_POOL: CLARITY_POOL_DEV
+  EAI_NAME: CLARITY_EAI_DEV
+
+  # Docker registry (from GitHub Secrets)
+  DOCKER_REPO_URL: ${{ secrets.DOCKER_REPO_URL }}
+
+  # Environment
+  ENV: ${{ github.event.inputs.environment || 'dev' }}
+
+jobs:
+  # ============================================================================
+  # Job 1: Build and Push Docker Images
+  # ============================================================================
+  build:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Snowflake CLI
+        uses: snowflakedb/snowflake-cli-action@v1.5
+        with:
+          cli-version: "3.6.0"
+
+      - name: Setup Snowflake CLI PATH
+        run: echo "$HOME/.snowflake-cli/bin" >> $GITHUB_PATH
+
+      - name: Prepare Snowflake JWT key
+        run: |
+          echo "$SNOWFLAKE_PRIVATE_KEY_RAW" > snowflake_jwt_key.pem
+          chmod 600 snowflake_jwt_key.pem
+
+      - name: Set up Snowflake connection
+        run: |
+          snow connection add \
+            --connection-name app_connection \
+            --account $SNOWFLAKE_ACCOUNT \
+            --user $SNOWFLAKE_USER \
+            --role $SNOWFLAKE_ROLE \
+            --warehouse $SNOWFLAKE_WAREHOUSE \
+            --database $SNOWFLAKE_DATABASE \
+            --schema $SNOWFLAKE_SCHEMA \
+            --host $SNOWFLAKE_HOST \
+            --port 443 \
+            --region us-east-1 \
+            --authenticator SNOWFLAKE_JWT \
+            --private-key-file snowflake_jwt_key.pem \
+            --no-interactive
+
+      - name: Test connection
+        run: snow connection test --connection app_connection
+
+      - name: Login to Snowflake Container Registry
+        run: snow spcs image-registry login --connection app_connection
+
+      - name: Make build script executable
+        run: chmod +x build-and-push.sh
+
+      - name: Build and push all images
+        run: ./build-and-push.sh
+
+      - name: Upload spec.yaml
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-yaml
+          path: infrastructure/spec.yaml
+          retention-days: 1
+
+  # ============================================================================
+  # Job 2: Deploy to Snowpark Container Services
+  # ============================================================================
+  deploy:
+    name: Deploy to Snowpark
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download spec.yaml
+        uses: actions/download-artifact@v4
+        with:
+          name: spec-yaml
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Snowflake CLI
+        uses: snowflakedb/snowflake-cli-action@v1.5
+        with:
+          cli-version: "3.6.0"
+
+      - name: Setup Snowflake CLI PATH
+        run: echo "$HOME/.snowflake-cli/bin" >> $GITHUB_PATH
+
+      - name: Prepare Snowflake JWT key
+        run: |
+          echo "$SNOWFLAKE_PRIVATE_KEY_RAW" > snowflake_jwt_key.pem
+          chmod 600 snowflake_jwt_key.pem
+
+      - name: Set up Snowflake connection
+        run: |
+          snow connection add \
+            --connection-name app_connection \
+            --account $SNOWFLAKE_ACCOUNT \
+            --user $SNOWFLAKE_USER \
+            --role $SNOWFLAKE_ROLE \
+            --warehouse $SNOWFLAKE_WAREHOUSE \
+            --database $SNOWFLAKE_DATABASE \
+            --schema $SNOWFLAKE_SCHEMA \
+            --host $SNOWFLAKE_HOST \
+            --port 443 \
+            --region us-east-1 \
+            --authenticator SNOWFLAKE_JWT \
+            --private-key-file snowflake_jwt_key.pem \
+            --no-interactive
+
+      - name: Test connection
+        run: snow connection test --connection app_connection
+
+      - name: Create service (if not exists)
+        run: |
+          snow spcs service create ${{ env.SERVICE_NAME }} \
+            --compute-pool ${{ env.COMPUTE_POOL }} \
+            --spec-path infrastructure/spec.yaml \
+            --if-not-exists \
+            --connection app_connection \
+            --eai-name ${{ env.EAI_NAME }}
+
+      - name: Upgrade service
+        run: |
+          snow spcs service upgrade ${{ env.SERVICE_NAME }} \
+            --spec-path infrastructure/spec.yaml \
+            --connection app_connection
+
+      - name: Wait for Service to Start
+        run: |
+          echo "Waiting 120 seconds for service to start..."
+          sleep 120
+
+      - name: Get Service Status
+        run: |
+          echo "Service Status:"
+          snow spcs service status ${{ env.SERVICE_NAME }} --connection app_connection
+
+          echo ""
+          echo "Service Endpoints:"
+          snow spcs service list-endpoints ${{ env.SERVICE_NAME }} --connection app_connection
+
+      - name: Display Summary
+        run: |
+          echo "============================================"
+          echo "Deployment Summary"
+          echo "============================================"
+          echo "Environment: ${{ env.ENV }}"
+          echo "Service Name: ${{ env.SERVICE_NAME }}"
+          echo "Database: ${{ env.SNOWFLAKE_DATABASE }}"
+          echo "Schema: ${{ env.SNOWFLAKE_SCHEMA }}"
+          echo "Compute Pool: ${{ env.COMPUTE_POOL }}"
+          echo "============================================"
+          echo ""
+          echo "Images Deployed:"
+          echo "  - ${{ env.DOCKER_REPO_URL }}/clarity-backend:latest"
+          echo "  - ${{ env.DOCKER_REPO_URL }}/clarity-frontend:latest"
+          echo "  - ${{ env.DOCKER_REPO_URL }}/clarity-proxy:latest"
+          echo "============================================"

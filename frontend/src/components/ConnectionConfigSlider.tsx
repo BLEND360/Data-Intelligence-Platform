@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
+import { API_ENDPOINTS } from '@/config/api';
 
 interface ConnectionConfigSliderProps {
   isOpen: boolean;
@@ -77,7 +78,7 @@ export function ConnectionConfigSlider({
       formData.append('private_key_file', config.privateKeyFile);
       formData.append('private_key_passphrase', config.privateKeyPassphrase);
 
-      const response = await fetch('http://127.0.0.1:8082/list-tables', {
+      const response = await fetch(API_ENDPOINTS.LIST_TABLES, {
         method: 'POST',
         body: formData,
       });
@@ -119,7 +120,7 @@ export function ConnectionConfigSlider({
       formData.append('private_key_passphrase', config.privateKeyPassphrase);
       formData.append('tables', JSON.stringify(Array.from(selectedTables)));
 
-      const response = await fetch('http://127.0.0.1:8082/run-analysis', {
+      const response = await fetch(API_ENDPOINTS.RUN_ANALYSIS, {
         method: 'POST',
         body: formData,
       });
