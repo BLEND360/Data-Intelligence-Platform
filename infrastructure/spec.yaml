@@ -4,7 +4,8 @@ spec:
       image: /CLARITY_DB/RETAIL/CLARITY_REPOSITORY_DEV/clarity-backend:latest
       env:
         ENVIRONMENT: production
-        SNOWFLAKE_ACCOUNT: WB19670-C2GPARTNERS
+        SNOWFLAKE_ACCOUNT: c2gpartners.us-east-1
+        SNOWFLAKE_HOST: c2gpartners.us-east-1.snowflakecomputing.com
         SNOWFLAKE_USER: CLARITY_SERVICE_USER_DEV
         SNOWFLAKE_DATABASE: CLARITY_DB
         SNOWFLAKE_SCHEMA: RETAIL
