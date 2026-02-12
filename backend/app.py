@@ -110,8 +110,14 @@ def load_private_key_bytes(path, passphrase=None):
 
 def is_running_in_spcs():
     """Check if running inside Snowpark Container Services"""
-    # SPCS sets SNOWFLAKE_HOST environment variable
-    return os.getenv("SNOWFLAKE_HOST") is not None or os.path.exists("/snowflake/session/token")
+    # SPCS provides the token file at this path
+    return os.path.exists("/snowflake/session/token")
+
+def _get_snowpark_token():
+    """Read the Snowflake session token from the mounted file in SPCS."""
+    token_path = "/snowflake/session/token"
+    with open(token_path, "r") as f:
+        return f.read().strip()
 
 def get_snowflake_session():
     """
@@ -119,17 +125,32 @@ def get_snowflake_session():
     falls back to private key auth for local development
     """
     if is_running_in_spcs():
-        # Running in SPCS - use token-based authentication
+        # Running in SPCS - use OAuth token authentication
         print("🔐 Using SPCS token-based authentication")
-        return Session.builder.configs({
-            "host": os.getenv("SNOWFLAKE_HOST", f"{os.getenv('SNOWFLAKE_ACCOUNT')}.snowflakecomputing.com"),
-            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-            "authenticator": "oauth",
-            "token": open("/snowflake/session/token").read(),
-            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
-            "database": os.getenv("SNOWFLAKE_DATABASE"),
-            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
-        }).create()
+        token = _get_snowpark_token()
+
+        account = os.getenv("SNOWFLAKE_ACCOUNT")
+        # Host must be lowercase
+        host = f"{account.lower()}.snowflakecomputing.com"
+
+        print(f"   Account: {account}")
+        print(f"   Host: {host}")
+        print(f"   Database: {os.getenv('SNOWFLAKE_DATABASE')}")
+        print(f"   Schema: {os.getenv('SNOWFLAKE_SCHEMA')}")
+        print(f"   Warehouse: {os.getenv('SNOWFLAKE_WAREHOUSE')}")
+        print(f"   Role: {os.getenv('SNOWFLAKE_ROLE')}")
+
+        conn = snowflake.connector.connect(
+            account=account,
+            host=host,
+            authenticator="oauth",
+            token=token,
+            database=os.getenv("SNOWFLAKE_DATABASE"),
+            schema=os.getenv("SNOWFLAKE_SCHEMA"),
+            warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
+            role=os.getenv("SNOWFLAKE_ROLE"),
+        )
+        return Session.builder.configs({"connection": conn}).create()
     else:
         # Local development - use private key authentication
         print("🔑 Using private key authentication")
